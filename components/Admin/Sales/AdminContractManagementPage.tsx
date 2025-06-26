@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import Card from '../../Common/Card';
@@ -142,7 +143,7 @@ const AdminContractManagementPage: React.FC = () => {
     const [year, month, day] = formData.dateSigned.split('-');
     const dateSignedForSave = `${day}/${month}/${year}`;
 
-    const payload: Omit<ContractDetails, "userId" | "clientName"> = {
+    const payload: Omit<ContractDetails, "id" | "userId" | "clientName"> = {
       contractNumber: formData.contractNumber,
       dateSigned: dateSignedForSave,
       projectAddress: formData.projectAddress,

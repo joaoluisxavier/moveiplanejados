@@ -4,6 +4,8 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 const apiKey = process.env.API_KEY;
 let ai: GoogleGenAI | null = null;
 let geminiInitializationError: string | null = null;
+const genericAiError = "Desculpe, o assistente de IA não está disponível no momento. Por favor, tente novamente mais tarde ou contate um atendente humano.";
+
 
 if (!apiKey) {
   const errorMsg = "Chave da API Gemini não configurada. Verifique as configurações do ambiente de implantação.";
@@ -22,12 +24,29 @@ if (!apiKey) {
 
 const model = 'gemini-2.5-flash-preview-04-17';
 
+// Generic error handler for Gemini API calls
+const handleGeminiError = (error: any, context: string): string => {
+    console.error(`Error calling Gemini API for ${context}:`, error);
+    let errorMessage = "Desculpe, não consegui processar sua solicitação no momento devido a um problema com o serviço de IA. Tente novamente mais tarde.";
+    if (error instanceof Error) {
+        if (error.message.includes("API key not valid") || error.message.toLowerCase().includes("api key") || error.message.includes("API_KEY_INVALID")) {
+            errorMessage = "Erro: A chave da API do Gemini não é válida ou não foi fornecida corretamente. Por favor, contate o suporte ou verifique a configuração do ambiente.";
+        } else if (error.message.includes("quota")) {
+            errorMessage = "Erro: A cota da API foi excedida. Tente novamente mais tarde.";
+        } else if (error.message.includes("candidate.finishReason") && error.message.includes("SAFETY")){
+             errorMessage = "Desculpe, a resposta foi bloqueada devido a configurações de segurança. Tente reformular sua pergunta.";
+        }
+    }
+    return errorMessage;
+}
+
 export const getGeminiChatResponse = async (promptText: string, history?: Array<{role: string, parts: Array<{text: string}>}>): Promise<string> => {
   if (geminiInitializationError) {
-    return geminiInitializationError;
+    console.error("Gemini not available:", geminiInitializationError);
+    return genericAiError;
   }
   if (!ai) {
-    return "Serviço Gemini não inicializado. Verifique a chave da API.";
+    return genericAiError;
   }
 
   try {
@@ -43,27 +62,17 @@ export const getGeminiChatResponse = async (promptText: string, history?: Array<
     return result.text;
 
   } catch (error) {
-    console.error("Error calling Gemini API for chat:", error);
-    let errorMessage = "Desculpe, não consegui processar sua solicitação no momento devido a um problema com o serviço de IA. Tente novamente mais tarde.";
-    if (error instanceof Error) {
-        if (error.message.includes("API key not valid") || error.message.toLowerCase().includes("api key") || error.message.includes("API_KEY_INVALID")) {
-            errorMessage = "Erro: A chave da API do Gemini não é válida ou não foi fornecida corretamente. Por favor, contate o suporte ou verifique a configuração do ambiente.";
-        } else if (error.message.includes("quota")) {
-            errorMessage = "Erro: A cota da API foi excedida. Tente novamente mais tarde.";
-        } else if (error.message.includes("candidate.finishReason") && error.message.includes("SAFETY")){
-             errorMessage = "Desculpe, a resposta foi bloqueada devido a configurações de segurança. Tente reformular sua pergunta.";
-        }
-    }
-    return errorMessage;
+    return handleGeminiError(error, "chat");
   }
 };
 
 export const summarizeTextWithGemini = async (textToSummarize: string): Promise<string> => {
   if (geminiInitializationError) {
-    return geminiInitializationError;
+    console.error("Gemini not available for summarization:", geminiInitializationError);
+    return genericAiError;
   }
   if (!ai) {
-    return "Serviço Gemini não inicializado. Verifique a chave da API.";
+    return genericAiError;
   }
 
   try {
@@ -74,8 +83,6 @@ export const summarizeTextWithGemini = async (textToSummarize: string): Promise<
     });
     return result.text;
   } catch (error) {
-    console.error("Error calling Gemini API for summarization:", error);
-    // Add more specific error handling if needed, similar to getGeminiChatResponse
-    return "Não foi possível resumir o texto devido a um erro no serviço de IA.";
+    return handleGeminiError(error, "summarization");
   }
 };

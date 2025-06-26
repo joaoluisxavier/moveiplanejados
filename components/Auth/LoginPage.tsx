@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../../App';
 import Button from '../Common/Button';
@@ -14,7 +13,7 @@ const FurnitureIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 
 
 const LoginPage: React.FC = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState(''); // Changed from username to email for clarity
   const [password, setPassword] = useState('');
   const { login, isLoading } = useAuth();
   const [error, setError] = useState('');
@@ -22,7 +21,8 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const success = await login(username, password);
+    // The login function in context expects email for login
+    const success = await login(email, password);
     if (!success && !isLoading) { // isLoading check prevents showing error during loading
         setError('Usuário ou senha inválidos. Tente novamente.');
     }
@@ -39,17 +39,17 @@ const LoginPage: React.FC = () => {
         
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-              Usuário
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              Email (ou Usuário)
             </label>
             <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              id="email"
+              type="text" // Keep as text to allow usernames that might not be emails
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
               className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 sm:text-sm transition-colors"
-              placeholder="seu.usuario"
+              placeholder="seu.email@exemplo.com"
             />
           </div>
           <div>

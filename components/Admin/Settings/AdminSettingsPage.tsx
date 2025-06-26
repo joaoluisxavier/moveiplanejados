@@ -1,12 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import Card from '../../Common/Card';
 import Button from '../../Common/Button';
 import { useAuth } from '../../../App';
 import { 
     updateCurrentAdminUserPassword, 
-    addMockAdminUser,
-    getAllMockAdminUsers // To check for existing usernames
+    addAdminUser,
+    getAllAdminUsers
 } from '../../../services/authService';
 import { AdminUser } from '../../../types';
 
@@ -48,7 +47,7 @@ const AdminSettingsPage: React.FC = () => {
 
     setChangePasswordLoading(true);
     try {
-      const result = await updateCurrentAdminUserPassword(currentAdminUser.id, currentPassword, newPassword);
+      const result = await updateCurrentAdminUserPassword(currentPassword, newPassword);
       if (result.success) {
         addNotification(result.message, "success");
         setCurrentPassword('');
@@ -78,7 +77,7 @@ const AdminSettingsPage: React.FC = () => {
 
     setCreateAdminLoading(true);
     try {
-      const existingAdmins = await getAllMockAdminUsers();
+      const existingAdmins = await getAllAdminUsers();
       if (existingAdmins.some(admin => admin.username === newAdminUsername.trim())) {
         addNotification("Este nome de usuário já está em uso.", "error");
         setCreateAdminLoading(false);
@@ -90,7 +89,7 @@ const AdminSettingsPage: React.FC = () => {
         username: newAdminUsername.trim(),
         password: newAdminProvisionalPassword,
       };
-      await addMockAdminUser(newAdminData);
+      await addAdminUser(newAdminData);
       addNotification(`Administrador "${newAdminName.trim()}" criado com sucesso!`, "success");
       setNewAdminName('');
       setNewAdminUsername('');

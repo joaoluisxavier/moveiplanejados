@@ -1,21 +1,8 @@
-
 import React, { useState, createContext, useContext, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-
-// --- LocalStorage Availability Check ---
-try {
-  const testKey = '__test_ls_availability__';
-  localStorage.setItem(testKey, 'test');
-  if (localStorage.getItem(testKey) !== 'test') {
-    throw new Error('LocalStorage value integrity check failed.');
-  }
-  localStorage.removeItem(testKey);
-  console.info('LocalStorage is available and writable.');
-} catch (e) {
-  console.error("CRITICAL: LocalStorage is not available, not writable, or value integrity check failed. Data persistence will not work.", e);
-  // alert("Erro Crítico: O armazenamento local não está disponível ou não funciona corretamente. O aplicativo pode não salvar seus dados. Por favor, verifique as configurações do seu navegador (например, modo de navegação privada ou extensões) ou tente um navegador diferente.");
-}
-// --- End LocalStorage Check ---
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, collection } from 'firebase/firestore';
+import { auth, db } from './services/firebase';
 
 import LoginPage from './components/Auth/LoginPage';
 import MainLayout from './components/Layout/MainLayout';
@@ -24,7 +11,6 @@ import FurnitureTrackingPage from './components/Furniture/FurnitureTrackingPage'
 import FurnitureDetailPage from './components/Furniture/FurnitureDetailPage';
 import DeadlinesPage from './components/Deadlines/DeadlinesPage';
 import AssistancePage from './components/Assistance/AssistancePage';
-// import DeliverySchedulingPage from './components/Delivery/DeliverySchedulingPage'; // Removido
 import MessagesPage from './components/Communication/MessagesPage';
 import PurchasedItemsPage from './components/Items/PurchasedItemsPage';
 import ContractPage from './components/Contract/ContractPage';
@@ -42,11 +28,10 @@ import AdminContractManagementPage from './components/Admin/Sales/AdminContractM
 import AdminDeadlinesManagementPage from './components/Admin/Sales/AdminDeadlinesManagementPage';
 import AdminClientFormPage from './components/Admin/Clients/AdminClientFormPage';
 import AdminSettingsPage from './components/Admin/Settings/AdminSettingsPage';
-import AdminAllAssistanceRequestsPage from './components/Admin/Assistance/AdminAllAssistanceRequestsPage'; // Novo Import
-
+import AdminAllAssistanceRequestsPage from './components/Admin/Assistance/AdminAllAssistanceRequestsPage'; 
 
 import { User, AdminUser, AppNotification } from './types';
-import { mockLogin, mockLogout, mockAdminLogin } from './services/authService';
+import { login, logout, adminLogin } from './services/authService';
 import NotificationContainer from './components/Common/NotificationContainer';
 
 interface AuthContextType {
@@ -56,7 +41,7 @@ interface AuthContextType {
   logout: () => void;
   adminLogin: (username: string, pass: string) => Promise<boolean>;
   adminLogout: () => void;
-  isLoading: boolean;
+  isLoading: boolean; // Combined loading state
   addNotification: (message: string, type: AppNotification['type']) => void;
 }
 
@@ -73,54 +58,54 @@ export const useAuth = (): AuthContextType => {
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentAdminUser, setCurrentAdminUser] = useState<AdminUser | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Global loading for initial auth check
-  const [authLoading, setAuthLoading] = useState<boolean>(false); // Specific for login processes
+  const [isLoading, setIsLoading] = useState(true); // Global loading for initial auth check from Firebase
+  const [authLoading, setAuthLoading] = useState(false); // Specific for login button presses
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log("App.tsx: Attempting to load user sessions from localStorage.");
-    const savedUser = localStorage.getItem('currentUser');
-    const savedAdminUser = localStorage.getItem('currentAdminUser');
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log("Firebase onAuthStateChanged triggered. User:", firebaseUser?.uid);
+      if (firebaseUser) {
+        const usersCollection = collection(db, 'users');
+        const userDocRef = doc(usersCollection, firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
 
-    if (savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser);
-        // Enhanced validation for User object
-        if (parsedUser && typeof parsedUser.id === 'string' && typeof parsedUser.username === 'string' && typeof parsedUser.name === 'string') {
-          setCurrentUser(parsedUser as User);
-          console.log("App.tsx: Successfully loaded and validated 'currentUser' from localStorage:", parsedUser);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.isAdmin) {
+            const admin: AdminUser = {
+              id: firebaseUser.uid,
+              username: userData.username,
+              name: userData.name,
+            };
+            setCurrentAdminUser(admin);
+            setCurrentUser(null);
+            console.log("Admin user authenticated:", admin);
+          } else {
+            const client: User = {
+              id: firebaseUser.uid,
+              username: userData.username,
+              name: userData.name,
+              email: userData.email,
+            };
+            setCurrentUser(client);
+            setCurrentAdminUser(null);
+            console.log("Client user authenticated:", client);
+          }
         } else {
-          console.warn("App.tsx: Parsed 'currentUser' from localStorage is not a valid User object. Removing invalid item.", parsedUser);
-          localStorage.removeItem('currentUser');
+          console.warn(`User document not found in Firestore for UID: ${firebaseUser.uid}. Logging out.`);
+          await logout();
         }
-      } catch (e) {
-        console.error("App.tsx: Failed to parse 'currentUser' from localStorage. Removing invalid item.", e);
-        localStorage.removeItem('currentUser');
+      } else {
+        setCurrentUser(null);
+        setCurrentAdminUser(null);
+        console.log("No user signed in.");
       }
-    } else {
-        console.log("App.tsx: No 'currentUser' found in localStorage.");
-    }
+      setIsLoading(false);
+    });
 
-    if (savedAdminUser) {
-      try {
-        const parsedAdminUser = JSON.parse(savedAdminUser);
-        // Enhanced validation for AdminUser object
-        if (parsedAdminUser && typeof parsedAdminUser.id === 'string' && typeof parsedAdminUser.username === 'string' && typeof parsedAdminUser.name === 'string') {
-          setCurrentAdminUser(parsedAdminUser as AdminUser);
-          console.log("App.tsx: Successfully loaded and validated 'currentAdminUser' from localStorage:", parsedAdminUser);
-        } else {
-          console.warn("App.tsx: Parsed 'currentAdminUser' from localStorage is not a valid AdminUser object. Removing invalid item.", parsedAdminUser);
-          localStorage.removeItem('currentAdminUser');
-        }
-      } catch (e) {
-        console.error("App.tsx: Failed to parse 'currentAdminUser' from localStorage. Removing invalid item.", e);
-        localStorage.removeItem('currentAdminUser');
-      }
-    } else {
-        console.log("App.tsx: No 'currentAdminUser' found in localStorage.");
-    }
-    setIsLoading(false);
+    return () => unsubscribe();
   }, []);
 
   const addNotification = useCallback((message: string, type: AppNotification['type']) => {
@@ -134,11 +119,9 @@ const App: React.FC = () => {
   const handleLogin = useCallback(async (username: string, pass: string): Promise<boolean> => {
     setAuthLoading(true);
     try {
-      const user = await mockLogin(username, pass);
-      if (user) {
-        setCurrentUser(user);
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        console.log("App.tsx: 'currentUser' saved to localStorage after login:", user);
+      // Login function now expects email, not username for login. We use the username field as email.
+      const success = await login(username, pass);
+      if (success) {
         addNotification('Login bem-sucedido!', 'success');
         navigate('/');
         return true;
@@ -146,19 +129,16 @@ const App: React.FC = () => {
         addNotification('Usuário ou senha inválidos.', 'error');
         return false;
       }
-    } catch (error) {
-      addNotification('Erro ao tentar fazer login.', 'error');
+    } catch (error: any) {
+      addNotification(error.message || 'Erro ao tentar fazer login.', 'error');
       return false;
     } finally {
       setAuthLoading(false);
     }
   }, [navigate, addNotification]);
 
-  const handleLogout = useCallback((): void => {
-    mockLogout();
-    setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    console.log("App.tsx: 'currentUser' removed from localStorage after logout.");
+  const handleLogout = useCallback(async (): Promise<void> => {
+    await logout();
     addNotification('Logout realizado com sucesso.', 'info');
     navigate('/login');
   }, [navigate, addNotification]);
@@ -166,11 +146,10 @@ const App: React.FC = () => {
   const handleAdminLogin = useCallback(async (username: string, pass: string): Promise<boolean> => {
     setAuthLoading(true);
     try {
-      const adminUser = await mockAdminLogin(username, pass);
-      if (adminUser) {
-        setCurrentAdminUser(adminUser);
-        localStorage.setItem('currentAdminUser', JSON.stringify(adminUser));
-        console.log("App.tsx: 'currentAdminUser' saved to localStorage after admin login:", adminUser);
+       // Admin login now expects an email. We construct it from the username.
+      const adminEmail = `${username}@admin.local`;
+      const success = await adminLogin(adminEmail, pass);
+      if (success) {
         addNotification('Login de administrador bem-sucedido!', 'success');
         navigate('/admin/dashboard');
         return true;
@@ -178,19 +157,16 @@ const App: React.FC = () => {
         addNotification('Usuário ou senha de administrador inválidos.', 'error');
         return false;
       }
-    } catch (error) {
-      addNotification('Erro ao tentar fazer login como administrador.', 'error');
+    } catch (error: any) {
+      addNotification(error.message || 'Erro ao tentar fazer login como administrador.', 'error');
       return false;
     } finally {
       setAuthLoading(false);
     }
   }, [navigate, addNotification]);
 
-  const handleAdminLogout = useCallback((): void => {
-    mockLogout(); // Assuming same logout process for simplicity
-    setCurrentAdminUser(null);
-    localStorage.removeItem('currentAdminUser');
-    console.log("App.tsx: 'currentAdminUser' removed from localStorage after admin logout.");
+  const handleAdminLogout = useCallback(async (): Promise<void> => {
+    await logout();
     addNotification('Logout de administrador realizado com sucesso.', 'info');
     navigate('/admin/login');
   }, [navigate, addNotification]);
@@ -199,7 +175,7 @@ const App: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="text-2xl font-semibold text-sky-700">Loading Portal...</div>
+        <div className="text-2xl font-semibold text-sky-700">Carregando Portal...</div>
       </div>
     );
   }
@@ -212,7 +188,7 @@ const App: React.FC = () => {
         logout: handleLogout, 
         adminLogin: handleAdminLogin, 
         adminLogout: handleAdminLogout, 
-        isLoading: authLoading, // Use authLoading for button states etc.
+        isLoading: authLoading, // Use authLoading for button states
         addNotification 
     }}>
       <NotificationContainer notifications={notifications} />
@@ -230,16 +206,13 @@ const App: React.FC = () => {
                   <Route path="meus-moveis/:itemId" element={<FurnitureDetailPage />} />
                   <Route path="prazos" element={<DeadlinesPage />} />
                   <Route path="assistencia" element={<AssistancePage />} />
-                  {/* <Route path="agendar-entrega" element={<DeliverySchedulingPage />} /> Removido */}
                   <Route path="mensagens" element={<MessagesPage />} />
                   <Route path="itens-comprados" element={<PurchasedItemsPage />} />
                   <Route path="contrato" element={<ContractPage />} />
-                  <Route path="*" element={<Navigate to="/" />} /> {/* Default client route to dashboard */}
+                  <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
               </MainLayout>
             ) : (
-              // If not logged in as client, and not an admin route, redirect to client login
-              // Check if the current hash path starts with #/admin
               !window.location.hash.startsWith('#/admin') && !currentAdminUser ? <Navigate to="/login" replace /> : null
             )
           } 
@@ -265,17 +238,16 @@ const App: React.FC = () => {
                   <Route path="clients/:clientId/contract" element={<AdminContractManagementPage />} />
                   <Route path="clients/:clientId/deadlines" element={<AdminDeadlinesManagementPage />} />
                   <Route path="settings" element={<AdminSettingsPage />} />
-                  <Route path="assistance-all" element={<AdminAllAssistanceRequestsPage />} /> {/* Nova Rota */}
-                  <Route path="*" element={<Navigate to="/admin/dashboard" />} /> {/* Default admin route */}
+                  <Route path="assistance-all" element={<AdminAllAssistanceRequestsPage />} />
+                  <Route path="*" element={<Navigate to="/admin/dashboard" />} />
                 </Routes>
               </AdminLayout>
             ) : (
-              // If not logged in as admin, redirect to admin login
               window.location.hash.startsWith('#/admin') ? <Navigate to="/admin/login" replace /> : null
             )
           }
         />
-         {/* Fallback for any route not matched, if no user and not admin, go to client login */}
+         {/* Fallback for any route not matched */}
         {!currentUser && !currentAdminUser && !window.location.hash.startsWith('#/admin') && (
             <Route path="*" element={<Navigate to="/login" replace />} />
         )}

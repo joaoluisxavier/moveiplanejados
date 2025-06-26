@@ -79,9 +79,9 @@ const AdminClientFormPage: React.FC = () => {
         addNotification("Cliente adicionado com sucesso!", "success");
         navigate(`/admin/clients/${newClient.id}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving client:", error);
-      addNotification("Erro ao salvar cliente.", "error");
+      addNotification(error.message || "Erro ao salvar cliente.", "error");
     } finally {
       setPageLoading(false);
     }

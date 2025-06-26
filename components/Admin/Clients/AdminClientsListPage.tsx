@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Card from '../../Common/Card';
@@ -50,10 +49,10 @@ const AdminClientsListPage: React.FC = () => {
   }, [fetchClients]);
 
   const handleDeleteClient = async (clientId: string, clientName: string) => {
-    if (window.confirm(`Tem certeza que deseja excluir o cliente ${clientName} e todos os seus dados associados? Esta ação é irreversível.`)) {
+    if (window.confirm(`Tem certeza que deseja excluir o cliente ${clientName} e todos os seus dados associados? Esta ação é irreversível e o registro de autenticação precisará ser removido manualmente no console do Firebase.`)) {
       try {
         await adminDeleteClient(clientId);
-        addNotification(`Cliente ${clientName} excluído com sucesso.`, "success");
+        addNotification(`Dados do cliente ${clientName} excluídos com sucesso.`, "success");
         fetchClients(); // Refresh the list
       } catch (error) {
         console.error("Failed to delete client", error);

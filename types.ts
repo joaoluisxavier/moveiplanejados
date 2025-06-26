@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   username: string;
@@ -104,6 +103,7 @@ export interface PurchasedItem {
 }
 
 export interface ContractDetails {
+  id: string;
   userId: string; // Added
   contractNumber: string;
   clientName: string; // This will now come from User object

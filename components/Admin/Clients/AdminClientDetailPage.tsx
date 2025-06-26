@@ -5,8 +5,8 @@ import Card from '../../Common/Card';
 import Button from '../../Common/Button';
 import LoadingSpinner from '../../Common/LoadingSpinner';
 import { useAuth } from '../../../App';
-import { adminGetClientById, adminGetFurnitureItemsByUserId, adminGetAssistanceRequestsByUserId, adminGetDeadlinesByUserId } from '../../../services/dataService';
-import { User, FurnitureItem, AssistanceRequest, AssistanceRequestStatus, Deadline, FurnitureStatus } from '../../../types';
+import { adminGetClientById, adminGetFurnitureItemsByUserId, adminGetAssistanceRequestsByUserId, adminGetDeadlinesByUserId, adminGetPurchasedItemsByUserId } from '../../../services/dataService';
+import { User, FurnitureItem, AssistanceRequest, AssistanceRequestStatus, Deadline, FurnitureStatus, PurchasedItem } from '../../../types';
 
 // Icons
 const ArrowLeftIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -30,6 +30,7 @@ const AdminClientDetailPage: React.FC = () => {
   const [furniture, setFurniture] = useState<FurnitureItem[]>([]);
   const [assistanceRequests, setAssistanceRequests] = useState<AssistanceRequest[]>([]);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
+  const [purchasedItems, setPurchasedItems] = useState<PurchasedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -49,14 +50,18 @@ const AdminClientDetailPage: React.FC = () => {
         }
         setClient(clientData);
         
-        const [furnitureData, assistanceData, deadlinesData] = await Promise.all([
+        // Data fetching is currently stubbed, will return empty arrays.
+        // This will be implemented with Firestore in the next step.
+        const [furnitureData, assistanceData, deadlinesData, purchasedData] = await Promise.all([
             adminGetFurnitureItemsByUserId(clientId),
             adminGetAssistanceRequestsByUserId(clientId),
-            adminGetDeadlinesByUserId(clientId)
+            adminGetDeadlinesByUserId(clientId),
+            adminGetPurchasedItemsByUserId(clientId),
         ]);
         setFurniture(furnitureData);
         setAssistanceRequests(assistanceData);
         setDeadlines(deadlinesData);
+        setPurchasedItems(purchasedData);
 
       } catch (error) {
         console.error("Failed to fetch client details", error);
@@ -73,7 +78,6 @@ const AdminClientDetailPage: React.FC = () => {
   }
 
   if (!client) {
-    // This case should ideally be handled by the redirect in useEffect
     return <Card title="Erro"><p>Cliente não encontrado.</p></Card>;
   }
   
@@ -109,8 +113,7 @@ const AdminClientDetailPage: React.FC = () => {
                 <SummaryCard title="Móveis Ativos" value={activeFurniture.length} linkTo={`/admin/clients/${clientId}/furniture`} linkText="Gerenciar Móveis"/>
                 <SummaryCard title="Assistências Abertas" value={openAssistance.length} linkTo={`/admin/clients/${clientId}/assistance`} linkText="Gerenciar Assistência"/>
                 <SummaryCard title="Próximos Prazos" value={upcomingDeadlines.length} linkTo={`/admin/clients/${clientId}/deadlines`} linkText="Gerenciar Prazos"/>
-                <SummaryCard title="Itens Comprados" value={furniture.length} linkTo={`/admin/clients/${clientId}/items`} linkText="Gerenciar Itens"/>
-                {/* Contract and Messages are more direct management sections */}
+                <SummaryCard title="Itens Comprados (Histórico)" value={purchasedItems.length} linkTo={`/admin/clients/${clientId}/items`} linkText="Gerenciar Itens"/>
              </div>
         </div>
       </Card>

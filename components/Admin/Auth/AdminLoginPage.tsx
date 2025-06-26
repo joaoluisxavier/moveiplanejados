@@ -20,6 +20,7 @@ const AdminLoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    // The adminLogin function in context expects the username, and it will construct the email
     const success = await adminLogin(username, password);
     if (!success && !isLoading) {
         setError('Usuário ou senha de administrador inválidos.');

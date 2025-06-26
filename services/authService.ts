@@ -1,236 +1,245 @@
-
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut,
+  reauthenticateWithCredential,
+  updatePassword,
+  EmailAuthProvider,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { User, AdminUser } from '../types';
+import { auth, db } from './firebase';
 
-const MOCK_USERS_STORAGE_KEY = 'mockClientUsersData';
-const MOCK_ADMIN_USERS_STORAGE_KEY = 'mockAdminUsersData';
-
-// Initial default users (clients)
-const defaultMockUsers: User[] = [
-  { id: '1', username: 'cliente1', name: 'João Silva', email: 'joao.silva@example.com', password: 'senha123' },
-  { id: '2', username: 'cliente2', name: 'Maria Oliveira', email: 'maria.oliveira@example.com', password: 'senha123' },
-];
-
-let mockUsers: User[];
-
-try {
-  const storedUsers = localStorage.getItem(MOCK_USERS_STORAGE_KEY);
-  if (storedUsers) {
-    const parsedUsers = JSON.parse(storedUsers);
-    if (Array.isArray(parsedUsers) && (parsedUsers.length === 0 || (parsedUsers.length > 0 && typeof parsedUsers[0]?.id !== 'undefined'))) {
-        mockUsers = parsedUsers;
-        console.log(`authService: Successfully loaded ${mockUsers.length} users from localStorage for key ${MOCK_USERS_STORAGE_KEY}.`);
-    } else {
-        console.warn(`authService: Stored data for key ${MOCK_USERS_STORAGE_KEY} is invalid. Falling back to defaults and overwriting localStorage.`);
-        mockUsers = [...defaultMockUsers];
-        localStorage.setItem(MOCK_USERS_STORAGE_KEY, JSON.stringify(mockUsers));
-    }
-  } else {
-    console.log(`authService: No data found for key ${MOCK_USERS_STORAGE_KEY}. Initializing with default users and saving to localStorage.`);
-    mockUsers = [...defaultMockUsers];
-    localStorage.setItem(MOCK_USERS_STORAGE_KEY, JSON.stringify(mockUsers));
+// Helper to convert Firebase error codes to user-friendly messages
+const getFirebaseAuthErrorMessage = (errorCode: string): string => {
+  switch (errorCode) {
+    case 'auth/invalid-email':
+      return 'O formato do email fornecido é inválido.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Usuário ou senha inválidos.';
+    case 'auth/email-already-in-use':
+      return 'Este email já está sendo utilizado por outra conta.';
+    case 'auth/weak-password':
+      return 'A senha é muito fraca. Use pelo menos 6 caracteres.';
+    case 'auth/requires-recent-login':
+      return 'Esta operação requer um login recente. Por favor, faça login novamente e tente de novo.';
+    default:
+      return 'Ocorreu um erro de autenticação. Tente novamente.';
   }
-} catch (error) {
-  console.error(`authService: Error loading/parsing localStorage for key ${MOCK_USERS_STORAGE_KEY}:`, error, `. Falling back to default and overwriting.`);
-  mockUsers = [...defaultMockUsers];
-  localStorage.setItem(MOCK_USERS_STORAGE_KEY, JSON.stringify(mockUsers));
-}
+};
 
-const saveMockUsersToLocalStorage = () => {
+
+// --- AUTHENTICATION FUNCTIONS ---
+
+export const login = async (email: string, password: string): Promise<boolean> => {
   try {
-    localStorage.setItem(MOCK_USERS_STORAGE_KEY, JSON.stringify(mockUsers));
-    console.log(`authService: Saved ${mockUsers.length} users to localStorage for key ${MOCK_USERS_STORAGE_KEY}.`);
-  } catch (error) {
-    console.error(`authService: Error saving mockUsers to localStorage (key ${MOCK_USERS_STORAGE_KEY}):`, error);
-  }
-};
-
-// Admin users management with localStorage
-let mockAdminUsers: AdminUser[];
-const defaultAdminUser: AdminUser = { id: 'admin1', username: 'admin', name: 'Administrador Principal', password: 'adminpass' };
-
-try {
-  const storedAdminUsers = localStorage.getItem(MOCK_ADMIN_USERS_STORAGE_KEY);
-  if (storedAdminUsers) {
-    const parsedAdminUsers = JSON.parse(storedAdminUsers);
-    if (Array.isArray(parsedAdminUsers) && 
-        (parsedAdminUsers.length === 0 || 
-         (parsedAdminUsers.length > 0 && 
-          typeof parsedAdminUsers[0]?.id !== 'undefined' && 
-          typeof parsedAdminUsers[0]?.password !== 'undefined'))) {
-        mockAdminUsers = parsedAdminUsers;
-        console.log(`authService: Successfully loaded ${mockAdminUsers.length} admin users from localStorage for key ${MOCK_ADMIN_USERS_STORAGE_KEY}.`);
-    } else {
-        console.warn(`authService: Stored data for key ${MOCK_ADMIN_USERS_STORAGE_KEY} is invalid. Falling back to default and overwriting localStorage.`);
-        mockAdminUsers = [defaultAdminUser];
-        localStorage.setItem(MOCK_ADMIN_USERS_STORAGE_KEY, JSON.stringify(mockAdminUsers));
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    if (!userCredential.user) {
+        throw new Error("Falha no login, usuário não encontrado.");
     }
-  } else {
-    console.log(`authService: No data found for key ${MOCK_ADMIN_USERS_STORAGE_KEY}. Initializing with default admin user and saving to localStorage.`);
-    mockAdminUsers = [defaultAdminUser];
-    localStorage.setItem(MOCK_ADMIN_USERS_STORAGE_KEY, JSON.stringify(mockAdminUsers));
-  }
-} catch (error) {
-  console.error(`authService: Error loading/parsing localStorage for key ${MOCK_ADMIN_USERS_STORAGE_KEY}:`, error, `. Falling back to default and overwriting.`);
-  mockAdminUsers = [defaultAdminUser];
-  localStorage.setItem(MOCK_ADMIN_USERS_STORAGE_KEY, JSON.stringify(mockAdminUsers));
-}
+    const userDocRef = doc(db, 'users', userCredential.user.uid);
+    const userDoc = await getDoc(userDocRef);
 
-const saveMockAdminUsersToLocalStorage = () => {
+    if (userDoc.exists() && !userDoc.data()?.isAdmin) {
+      // The onAuthStateChanged listener in App.tsx will handle setting the user state.
+      return true;
+    } else {
+      // User is an admin or doesn't exist in Firestore
+      await signOut(auth);
+      throw new Error("Credenciais inválidas ou conta de administrador.");
+    }
+  } catch (error: any) {
+    console.error("Login failed:", error.code, error.message);
+    throw new Error(getFirebaseAuthErrorMessage(error.code));
+  }
+};
+
+export const adminLogin = async (email: string, password: string): Promise<boolean> => {
   try {
-    localStorage.setItem(MOCK_ADMIN_USERS_STORAGE_KEY, JSON.stringify(mockAdminUsers));
-     console.log(`authService: Saved ${mockAdminUsers.length} admin users to localStorage for key ${MOCK_ADMIN_USERS_STORAGE_KEY}.`);
-  } catch (error)
- {
-    console.error(`authService: Error saving mockAdminUsers to localStorage (key ${MOCK_ADMIN_USERS_STORAGE_KEY}):`, error);
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    if (!userCredential.user) {
+        throw new Error("Falha no login de admin, usuário não encontrado.");
+    }
+    const userDocRef = doc(db, 'users', userCredential.user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (userDoc.exists() && userDoc.data()?.isAdmin === true) {
+      return true;
+    } else {
+      await signOut(auth);
+      throw new Error("Acesso negado. Esta conta não é de administrador.");
+    }
+  } catch (error: any) {
+    console.error("Admin Login failed:", error.code, error.message);
+    throw new Error(getFirebaseAuthErrorMessage(error.code));
   }
 };
 
-
-export const mockLogin = (username: string, password: string): Promise<User | null> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const user = mockUsers.find(u => u.username === username && u.password === password);
-      resolve(user || null);
-    }, 200); 
-  });
+export const logout = async (): Promise<void> => {
+  await signOut(auth);
 };
 
-export const mockLogout = (): Promise<void> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve();
-    }, 200);
+// --- USER MANAGEMENT (Admin actions) ---
+
+export const getAllClients = async (): Promise<User[]> => {
+  const usersCollectionRef = collection(db, 'users');
+  const q = query(usersCollectionRef, where("isAdmin", "!=", true));
+  const querySnapshot = await getDocs(q);
+  const users: User[] = [];
+  querySnapshot.forEach((doc) => {
+    const data = doc.data();
+    users.push({
+      id: doc.id,
+      name: data.name,
+      username: data.username,
+      email: data.email,
+    });
   });
+  return users;
 };
 
-export const mockAdminLogin = (username: string, password: string): Promise<AdminUser | null> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const adminUser = mockAdminUsers.find(u => u.username === username && u.password === password);
-      resolve(adminUser || null);
-    }, 200);
-  });
-};
-
-export const getAllMockUsers = (): Promise<User[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve([...mockUsers]); // Return a copy
-    }, 100);
-  });
-};
-
-export const getMockUserById = (userId: string): Promise<User | null> => {
-   return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(mockUsers.find(u => u.id === userId) || null);
-    }, 100);
-  });
-};
-
-export const addMockUser = (userData: Omit<User, 'id'>): Promise<User> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newUser: User = {
-        id: `user-${Date.now()}`,
-        ...userData,
-        password: userData.password || 'senha123', // Default password if not provided
-      };
-      mockUsers.push(newUser);
-      saveMockUsersToLocalStorage();
-      resolve(newUser);
-    }, 200);
-  });
-};
-
-export const updateMockUser = (userId: string, userData: Partial<User>): Promise<User | null> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const userIndex = mockUsers.findIndex(u => u.id === userId);
-      if (userIndex > -1) {
-        // Ensure password is only updated if explicitly provided and not empty
-        const newPassword = userData.password && userData.password.trim() !== '' ? userData.password : mockUsers[userIndex].password;
-        mockUsers[userIndex] = { 
-            ...mockUsers[userIndex], 
-            ...userData,
-            password: newPassword // Use the determined password
+export const getClientById = async (userId: string): Promise<User | null> => {
+  const userDocRef = doc(db, 'users', userId);
+  const userDoc = await getDoc(userDocRef);
+  if (userDoc.exists()) {
+    const data = userDoc.data();
+    if (data) {
+        return {
+          id: userDoc.id,
+          name: data.name,
+          username: data.username,
+          email: data.email,
         };
-        saveMockUsersToLocalStorage();
-        resolve(mockUsers[userIndex]);
-      } else {
-        resolve(null);
-      }
-    }, 200);
-  });
+    }
+  }
+  return null;
 };
 
-export const deleteMockUser = (userId: string): Promise<boolean> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const initialLength = mockUsers.length;
-      mockUsers = mockUsers.filter(u => u.id !== userId);
-      if (mockUsers.length < initialLength) {
-        saveMockUsersToLocalStorage();
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    }, 200);
-  });
+export const addClient = async (userData: Omit<User, 'id'>): Promise<User> => {
+   if (!userData.password) {
+    throw new Error("A senha é obrigatória para criar um novo usuário.");
+  }
+  
+  // Temporarily sign out admin if needed, or handle this via a Cloud Function in a real-world scenario.
+  // For this project, we assume we can create users directly.
+  // A better approach is using the Admin SDK on a backend.
+  
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
+    const { user } = userCredential;
+    if (!user) {
+        throw new Error("Falha ao criar usuário na autenticação.");
+    }
+
+    const newUserDoc: Omit<User, 'id' | 'password'> & { isAdmin: boolean } = {
+      name: userData.name,
+      username: userData.username,
+      email: userData.email,
+      isAdmin: false,
+    };
+    await setDoc(doc(db, 'users', user.uid), newUserDoc);
+    
+    // The current logged-in user changes after createUserWithEmailAndPassword.
+    // In a real app, this should be an admin-only operation via backend to not affect admin's session.
+    // For now, we'll accept this behavior.
+
+    return { id: user.uid, ...userData };
+  } catch (error: any) {
+    console.error("Error adding user:", error.code, error.message);
+    throw new Error(getFirebaseAuthErrorMessage(error.code));
+  }
 };
 
-// Admin User Management Functions
-export const getAllMockAdminUsers = (): Promise<AdminUser[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve([...mockAdminUsers]); // Return a copy
-    }, 100);
-  });
+
+export const updateClient = async (userId: string, userData: Partial<User>): Promise<User | null> => {
+  const userDocRef = doc(db, "users", userId);
+  const updates: Partial<User> = { ...userData };
+  delete updates.password; // Password must be updated separately via Admin SDK.
+  
+  await updateDoc(userDocRef, updates);
+
+  if (userData.password) {
+    console.warn("A senha de outro usuário não pode ser alterada diretamente pelo client-side SDK. Esta operação deve ser feita por uma Cloud Function com privilégios de administrador.");
+  }
+
+  return getClientById(userId);
 };
 
-export const addMockAdminUser = (adminData: Omit<AdminUser, 'id'>): Promise<AdminUser> => {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (mockAdminUsers.find(u => u.username === adminData.username)) {
-        reject(new Error('Admin username already exists.'));
-        return;
-      }
-      if (!adminData.password || adminData.password.trim() === '') {
-        reject(new Error('Password is required for new admin users.'));
-        return;
-      }
-      const newAdmin: AdminUser = {
-        id: `admin-${Date.now()}`,
-        name: adminData.name,
-        username: adminData.username,
-        password: adminData.password, // Password is required
-      };
-      mockAdminUsers.push(newAdmin);
-      saveMockAdminUsersToLocalStorage();
-      resolve(newAdmin);
-    }, 200);
-  });
+export const deleteClientFirestoreRecord = async (userId: string): Promise<boolean> => {
+  try {
+    console.warn(`DELETING USER: For production, user deletion should be a backend process. Deleting only Firestore record for user ${userId}.`);
+    const userDocRef = doc(db, "users", userId);
+    await deleteDoc(userDocRef);
+    return true;
+  } catch (error) {
+    console.error("Error deleting user Firestore record:", error);
+    return false;
+  }
 };
 
-export const updateCurrentAdminUserPassword = (adminId: string, oldPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const adminIndex = mockAdminUsers.findIndex(u => u.id === adminId);
-      if (adminIndex === -1) {
-        resolve({ success: false, message: 'Administrador não encontrado.' });
-        return;
-      }
-      if (mockAdminUsers[adminIndex].password !== oldPassword) {
-        resolve({ success: false, message: 'Senha atual incorreta.' });
-        return;
-      }
-      if (!newPassword || newPassword.trim() === '') {
-        resolve({ success: false, message: 'Nova senha não pode ser vazia.' });
-        return;
-      }
-      mockAdminUsers[adminIndex].password = newPassword;
-      saveMockAdminUsersToLocalStorage();
-      resolve({ success: true, message: 'Senha alterada com sucesso.' });
-    }, 200);
-  });
+
+// --- ADMIN USER MANAGEMENT ---
+
+export const getAllAdminUsers = async (): Promise<AdminUser[]> => {
+   const usersCollectionRef = collection(db, 'users');
+   const q = query(usersCollectionRef, where("isAdmin", "==", true));
+   const querySnapshot = await getDocs(q);
+   const admins: AdminUser[] = [];
+   querySnapshot.forEach((doc) => {
+     const data = doc.data();
+     admins.push({
+       id: doc.id,
+       name: data.name,
+       username: data.username,
+     });
+   });
+   return admins;
+};
+
+export const addAdminUser = async (adminData: Omit<AdminUser, 'id'>): Promise<AdminUser> => {
+   if (!adminData.password) {
+    throw new Error("A senha é obrigatória para criar um novo administrador.");
+  }
+  // This has the same issue as addClient - it will log the current user out.
+  // Best handled via backend.
+  try {
+    // We use a dummy email format for admins as Firebase Auth is email-based.
+    const adminEmail = `${adminData.username}@admin.local`;
+    const userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminData.password);
+    const { user } = userCredential;
+
+    if (!user) {
+        throw new Error("Falha ao criar usuário admin na autenticação.");
+    }
+
+    const newAdmin = {
+      name: adminData.name,
+      username: adminData.username,
+      email: adminEmail,
+      isAdmin: true,
+    };
+    await setDoc(doc(db, 'users', user.uid), newAdmin);
+    
+    return { id: user.uid, ...adminData };
+  } catch (error: any) {
+    throw new Error(getFirebaseAuthErrorMessage(error.code));
+  }
+};
+
+export const updateCurrentAdminUserPassword = async (oldPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+  const user = auth.currentUser;
+  if (user && user.email) {
+    try {
+      const credential = EmailAuthProvider.credential(user.email, oldPassword);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, newPassword);
+      return { success: true, message: "Senha alterada com sucesso." };
+    } catch (error: any) {
+      console.error("Password update error:", error);
+      return { success: false, message: getFirebaseAuthErrorMessage(error.code) };
+    }
+  }
+  return { success: false, message: "Usuário não autenticado corretamente." };
 };
