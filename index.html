@@ -1,0 +1,43 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Cliente - Móveis Planejados</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Ensure process and process.env exist, primarily for process.env.API_KEY.
+      // The API_KEY itself is assumed to be set by Netlify's environment variables.
+      // This script runs before any module scripts that might try to access process.env.
+      window.process = window.process || {};
+      window.process.env = window.process.env || {};
+      // DO NOT set API_KEY here. It must come from the environment configured in Netlify.
+      // For example, if Netlify injects environment variables and makes them available
+      // on the window object (e.g., window.NETLIFY_API_KEY), you might bridge it here:
+      // if (window.NETLIFY_API_KEY) {
+      //   window.process.env.API_KEY = window.NETLIFY_API_KEY;
+      // }
+      // However, per the exercise instructions, we must assume process.env.API_KEY
+      // is already available in the JS context where @google/genai is initialized.
+      // This snippet just ensures the 'process.env' path doesn't cause an error
+      // if 'process' or 'process.env' is undefined.
+    </script>
+<script type="importmap">
+{
+  "imports": {
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.2",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.6.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-gray-100">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
