@@ -1,5 +1,5 @@
 {
-  "name": "portal-do-cliente---móveis-planejados",
+  "name": "portal-do-cliente---moveis-planejados",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,14 +13,11 @@
     "react-dom": "^19.1.0",
     "react": "^19.1.0",
     "@google/genai": "^1.6.0",
-    "firebase/app": "10.12.2",
-    "firebase/auth": "10.12.2",
-    "firebase/firestore": "10.12.2",
-    "firebase": "^11.9.1"
+    "firebase": "10.12.2"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "typescript": "~5.7.2",
+    "@types/node": "22.14.0",
+    "typescript": "~5.2.2",
     "vite": "^6.2.0"
   }
 }
