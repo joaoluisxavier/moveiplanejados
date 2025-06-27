@@ -1,3 +1,4 @@
+
 import React, { useState, createContext, useContext, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -193,33 +194,11 @@ const App: React.FC = () => {
     }}>
       <NotificationContainer notifications={notifications} />
       <Routes>
-        {/* Client Routes */}
+        {/* Public Login Routes */}
         <Route path="/login" element={currentUser ? <Navigate to="/" /> : <LoginPage />} />
-        <Route 
-          path="/*" 
-          element={
-            currentUser ? (
-              <MainLayout>
-                <Routes>
-                  <Route index element={<DashboardPage />} />
-                  <Route path="meus-moveis" element={<FurnitureTrackingPage />} />
-                  <Route path="meus-moveis/:itemId" element={<FurnitureDetailPage />} />
-                  <Route path="prazos" element={<DeadlinesPage />} />
-                  <Route path="assistencia" element={<AssistancePage />} />
-                  <Route path="mensagens" element={<MessagesPage />} />
-                  <Route path="itens-comprados" element={<PurchasedItemsPage />} />
-                  <Route path="contrato" element={<ContractPage />} />
-                  <Route path="*" element={<Navigate to="/" />} />
-                </Routes>
-              </MainLayout>
-            ) : (
-              !window.location.hash.startsWith('#/admin') && !currentAdminUser ? <Navigate to="/login" replace /> : null
-            )
-          } 
-        />
-
-        {/* Admin Routes */}
         <Route path="/admin/login" element={currentAdminUser ? <Navigate to="/admin/dashboard" /> : <AdminLoginPage />} />
+
+        {/* Admin Protected Routes - Placed before client routes to ensure correct matching */}
         <Route 
           path="/admin/*"
           element={
@@ -243,18 +222,38 @@ const App: React.FC = () => {
                 </Routes>
               </AdminLayout>
             ) : (
-              window.location.hash.startsWith('#/admin') ? <Navigate to="/admin/login" replace /> : null
+              <Navigate to="/admin/login" replace />
             )
           }
         />
-         {/* Fallback for any route not matched */}
-        {!currentUser && !currentAdminUser && !window.location.hash.startsWith('#/admin') && (
-            <Route path="*" element={<Navigate to="/login" replace />} />
-        )}
-         {!currentUser && !currentAdminUser && window.location.hash.startsWith('#/admin') && (
-             <Route path="*" element={<Navigate to="/admin/login" replace />} />
-        )}
 
+        {/* Client Protected Routes - Catches all other paths */}
+        <Route 
+          path="/*" 
+          element={
+            currentUser ? (
+              <MainLayout>
+                <Routes>
+                  <Route index element={<DashboardPage />} />
+                  <Route path="meus-moveis" element={<FurnitureTrackingPage />} />
+                  <Route path="meus-moveis/:itemId" element={<FurnitureDetailPage />} />
+                  <Route path="prazos" element={<DeadlinesPage />} />
+                  <Route path="assistencia" element={<AssistancePage />} />
+                  <Route path="mensagens" element={<MessagesPage />} />
+                  <Route path="itens-comprados" element={<PurchasedItemsPage />} />
+                  <Route path="contrato" element={<ContractPage />} />
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+              </MainLayout>
+            ) : (
+              // If not a client, check if an admin is logged in and redirect appropriately.
+              // Otherwise, send to the main login page.
+              currentAdminUser 
+                ? <Navigate to="/admin/dashboard" replace /> 
+                : <Navigate to="/login" replace />
+            )
+          } 
+        />
       </Routes>
     </AuthContext.Provider>
   );

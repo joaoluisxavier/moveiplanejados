@@ -17,4 +17,3 @@ root.render(
     </HashRouter>
   </React.StrictMode>
 );
-console.log("VENDO AS VARIÁVEIS DE AMBIENTE:", import.meta.env);

@@ -1,13 +1,43 @@
-<!doctype html>
-<html lang="pt-br">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal do Cliente - Móveis Planejados</title>
     <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body>
+    <script>
+      // This script ensures 'process.env' exists. It's used by services like the
+      // Gemini API to read environment variables (e.g., process.env.API_KEY).
+      // In a hosting environment like Netlify, you MUST set the corresponding
+      // environment variables in your site's settings. A build tool would typically
+      // replace these, but in this project's setup, we rely on the hosting
+      // environment to provide them.
+      window.process = window.process || {};
+      window.process.env = window.process.env || {};
+
+      // For LOCAL DEVELOPMENT ONLY, you can uncomment and set your Gemini API Key here.
+      // In production (Netlify), this must be set as an environment variable.
+      // window.process.env.API_KEY = "YOUR_GEMINI_API_KEY_HERE";
+    </script>
+<script type="importmap">
+{
+  "imports": {
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.2",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.6.0",
+    "firebase/app": "https://esm.sh/firebase@10.12.2/app",
+    "firebase/auth": "https://esm.sh/firebase@10.12.2/auth",
+    "firebase/firestore": "https://esm.sh/firebase@10.12.2/firestore",
+    "firebase/": "https://esm.sh/firebase@^11.9.1/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-gray-100">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
-  </body>
+</body>
 </html>
